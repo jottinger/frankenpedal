@@ -8,16 +8,16 @@
 #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
 #endif
 
+#include <MIDI.h>
+
 const int STAT7=7;
 
 void noteOff(int note) {
-  Serial.print("-------------------------------------note off: ");
-  Serial.println(note);
+  MIDI.sendNoteOff(note, 0, 1);
 }
 
 void noteOn(int note) {
-  Serial.print("-------------------------------------note on: ");
-  Serial.println(note);
+  MIDI.sendNoteOn(note, 127, 1);
 }
 
 const int SAMPLE_COUNT = 100;
@@ -35,7 +35,6 @@ int ladder[]={
 int dataPoints[SAMPLE_COUNT];
 
 int readPin(int pin) {
-  long start=millis();
   double stddev;
   int loops=0;
   int mean;
@@ -50,15 +49,6 @@ int readPin(int pin) {
       stddev_sum+=(dataPoints[counter]-mean)*(dataPoints[counter]-mean);
     }
     stddev=sqrt(stddev_sum/SAMPLE_COUNT);
-long endTime=millis();
-Serial.print("elapsed time: ");
-Serial.println(endTime-start);
-    Serial.print("loops: ");
-    Serial.println(loops);
-    Serial.print("Average: ");
-    Serial.println(mean);
-    Serial.print("Standard Deviation: ");
-    Serial.println(stddev);
   } 
   while(mean<900 && stddev>ACCEPTABLE_STDDEV && (loops++)<5);
 
@@ -89,8 +79,7 @@ void setup() {
 
   // set up the A2 pin
   digitalWrite(A2, HIGH); 
-  Serial.begin(9600);
-  Serial.println("Hello!");
+  MIDI.begin(4);
   pinMode(STAT7, OUTPUT);
   digitalWrite(STAT7, HIGH);
 }
@@ -114,6 +103,7 @@ void loop() {
       }
     }
     lastIndex=index;
-    delay(500);
   }
 }
+
+
