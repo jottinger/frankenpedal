@@ -37,6 +37,11 @@ int ladder[]={
   50,
   -1 
 };
+String notes[]={
+  "C", "C#", "D", "D#", "E", 
+  "F", "F#", "G", "G#", "A",
+  "A#", "B", "C",
+};
 
 int dataPoints[SAMPLE_COUNT];
 //----------------------------------------------------
@@ -80,7 +85,7 @@ void loop() {
   int index=lastIndex;
 
   while(true) {
-    octave=1+analogRead(A0)/128;
+    octave=1+analogRead(A0)>>7;
     updateOctave(octave);
     index=readPin(A2);
     if(index!=lastIndex) {
@@ -124,15 +129,15 @@ int readPin(const int pin) {
       stddev=sqrt(stddev_sum/SAMPLE_SET);
     }
 #if DEBUG
-      long endTime=millis();
-      Serial.print("elapsed time: ");
-      Serial.print(endTime-start);
-      Serial.print("  loops: ");
-      Serial.print(loops);
-      Serial.print("  Average: ");
-      Serial.print(mean);
-      Serial.print("   Standard Deviation: ");
-      Serial.println(stddev);
+    long endTime=millis();
+    Serial.print("elapsed time: ");
+    Serial.print(endTime-start);
+    Serial.print("  loops: ");
+    Serial.print(loops);
+    Serial.print("  Average: ");
+    Serial.print(mean);
+    Serial.print("   Standard Deviation: ");
+    Serial.println(stddev);
 #endif
     idx=findIndex(mean);
   } 
@@ -224,6 +229,7 @@ void noteOn(const int note) {
 void noteOff(const int note) {
 }
 #endif
+
 
 
 
