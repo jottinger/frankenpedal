@@ -23,12 +23,11 @@
 #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
 #endif
 
-const int STAT7=7;
 LiquidCrystal lcd(4,5,8,9,10,11);
 int octave=2;
-const int SAMPLE_COUNT = 60;
-const int SAMPLE_SET=(int)(SAMPLE_COUNT*0.6);
-const int ACCEPTABLE_STDDEV=2;
+const int SAMPLE_COUNT = 100;
+//const int SAMPLE_SET=(int)(SAMPLE_COUNT*0.6);
+//const int ACCEPTABLE_STDDEV=2;
 int ladder[]={ 
   285, 265, 250,
   235, 220, 205,
@@ -43,7 +42,6 @@ String notes[]={
   "A#", "B", "C",
 };
 
-int dataPoints[SAMPLE_COUNT];
 //----------------------------------------------------
 void initSerial();
 
@@ -85,7 +83,7 @@ void loop() {
   int index=lastIndex;
 
   while(true) {
-    octave=1+analogRead(A0)>>7;
+    octave=1+((analogRead(A0))>>7);
     updateOctave(octave);
     index=readPin(A2);
     if(index!=lastIndex) {
@@ -98,52 +96,52 @@ void loop() {
     }
     lastIndex=index;
 #if DEBUG
-    delay(150);
+    delay(1500);
 #endif
   }
 }
 
 int readPin(const int pin) {
   int idx;
+  byte counter;
+  int data[14];
+  int pinSelect;
 #if DEBUG
   long start=millis();
 #endif
-  double stddev;
-  int loops=0;
-  int mean;
-  do {
-    double sum=0L;
-    for(int counter=0; counter<SAMPLE_COUNT; counter++) {
-      dataPoints[counter]=analogRead(pin);
+  // zero the reads
+  for(counter=0;counter<14;counter++) {
+    data[counter]=0;
+  }
+  for(counter=0;counter<SAMPLE_COUNT;counter++) {
+    pinSelect=findIndex(analogRead(pin));
+    pinSelect=(-1!=pinSelect?pinSelect:13);
+    data[pinSelect]++;
+  }
+  Serial.print("data [");
+  for(counter=0; counter<14; counter++) {
+    Serial.print(data[counter]);
+    Serial.print(",");
+  }
+  Serial.println("]");
+  // now find the maximum reads in the set; that's our pin!
+  pinSelect=-1;
+  int maxPin=0;
+  for(counter=0; counter<14; counter++) {
+    if(data[counter]>maxPin) {
+      maxPin=data[counter];
+      pinSelect=counter;
     }
-    sort(dataPoints,0, SAMPLE_COUNT);
-    for(int counter=0; counter<SAMPLE_SET;counter++) {
-      sum+=dataPoints[counter];
-    }
-    mean=(int)(sum/SAMPLE_SET);
-    if(mean<900) {
-      long stddev_sum=0L;  
-      for(int counter=0;counter<SAMPLE_SET; counter++) {
-        stddev_sum+=lsquare((dataPoints[counter]-mean));
-      }
-      stddev=sqrt(stddev_sum/SAMPLE_SET);
-    }
+  }
+  pinSelect=(pinSelect==13?-1:pinSelect);
 #if DEBUG
-    long endTime=millis();
-    Serial.print("elapsed time: ");
-    Serial.print(endTime-start);
-    Serial.print("  loops: ");
-    Serial.print(loops);
-    Serial.print("  Average: ");
-    Serial.print(mean);
-    Serial.print("   Standard Deviation: ");
-    Serial.println(stddev);
+  long endTime=millis();
+  Serial.print("elapsed time: ");
+  Serial.print(endTime-start);
+  Serial.print("  note: ");
+  Serial.println(pinSelect);
 #endif
-    idx=findIndex(mean);
-  } 
-  while(mean<900 && stddev>(ACCEPTABLE_STDDEV+(13-idx)/3) && (loops++)<5);
-
-  return idx;
+  return pinSelect;
 }
 
 void swap(int * const a, int * const b) { 
@@ -229,6 +227,13 @@ void noteOn(const int note) {
 void noteOff(const int note) {
 }
 #endif
+
+
+
+
+
+
+
 
 
 
