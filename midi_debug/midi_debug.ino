@@ -36,6 +36,7 @@ void noteOn(int note);
 int readPin(int pin);
 int findIndex(int frequency);
 long lsquare(long t);
+void scroll(String s, int row=0, int col=0);
 //----------------------------------------------------
 
 void setup() {
@@ -53,7 +54,7 @@ void setup() {
   pinMode(STAT7, OUTPUT);
   digitalWrite(STAT7, HIGH);
   lcd.begin(16,2);
-  lcd.print("FrankenPedals v1");
+  scroll("FrankenPedal v1");
   lcd.setCursor(0,1);
   lcd.print("O: ");
   lcd.setCursor(3,1);
@@ -169,4 +170,17 @@ int findIndex(int frequency) {
 long lsquare(long t) {
   return t*t;
 }
+
+void scroll(String s, int row, int col) {
+  String spaces("                ");
+  lcd.setCursor(col, row);
+  lcd.print(spaces);
+  for(int pos=0;pos<s.length(); pos++) {
+    String newString=s.substring(s.length()-pos-1)+spaces.substring(pos,spaces.length()-1);
+    lcd.setCursor(col, row);
+    lcd.print(newString);
+    delay(75);
+  }
+}
+
 
