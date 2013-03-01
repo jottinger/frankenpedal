@@ -1,5 +1,10 @@
 #include <MIDI.h>
 #include <LiquidCrystal.h>
+/*
+   note: FASTADC breaks things. Don't why yet.
+ not sure it's necessary, as our resolution is actually
+ very very good right now.
+ */
 
 #define FASTADC 0
 
@@ -12,10 +17,10 @@
 #endif
 
 const int STAT7=7;
-LiquidCrystal lcd(4,5, 8,9,10,11);
+LiquidCrystal lcd(4,5,8,9,10,11);
 int octave=2;
 const int SAMPLE_COUNT = 100;
-const int SAMPLE_SET=(int)(SAMPLE_COUNT*0.8);
+const int SAMPLE_SET=(int)(SAMPLE_COUNT*0.6);
 const int ACCEPTABLE_STDDEV=2;
 int ladder[]={ 
   285, 265, 250,
@@ -29,14 +34,15 @@ int ladder[]={
 int dataPoints[SAMPLE_COUNT];
 //----------------------------------------------------
 
-void swap(int *a, int *b);
-void sort(int arr[], int beg, int end);
-void noteOff(int note);
-void noteOn(int note);
-int readPin(int pin);
-int findIndex(int frequency);
-long lsquare(long t);
-void scroll(String s, int row=0, int col=0);
+void swap(int * const a, int * const b);
+void sort(int arr[], const int beg, const int end);
+void noteOff(const int note);
+void noteOn(const int note);
+int readPin(const int pin);
+int findIndex(const int frequency);
+long lsquare(const long t);
+void scroll(const String s, const int row=0, const int col=0);
+void updateOctave(const int octave, const int row=1, const int col=3);
 //----------------------------------------------------
 
 void setup() {
@@ -49,19 +55,17 @@ void setup() {
 
   // set up the A2 pin
   digitalWrite(A2, HIGH); 
+
   Serial.begin(9600);
   Serial.println("Hello!");
-  pinMode(STAT7, OUTPUT);
-  digitalWrite(STAT7, HIGH);
+
   lcd.begin(16,2);
   scroll("FrankenPedal v1");
   lcd.setCursor(0,1);
   lcd.print("O: ");
-  lcd.setCursor(3,1);
-  lcd.print(octave);
+  updateOctave(octave);  
+  lcd.setCursor(5,1);
 }
-
-int counter=0;
 
 void loop() {
   int baseC1=24;
@@ -69,6 +73,8 @@ void loop() {
   int index=lastIndex;
 
   while(true) {
+    octave=1+analogRead(A0)/128;
+    updateOctave(octave);
     index=readPin(A2);
     if(index!=lastIndex) {
       if(lastIndex!=-1) {
@@ -83,19 +89,17 @@ void loop() {
   }
 }
 
-
-
-void noteOff(int note) {
+void noteOff(const int note) {
   Serial.print("-------------------------------------note off: ");
   Serial.println(note);
 }
 
-void noteOn(int note) {
+void noteOn(const int note) {
   Serial.print("-------------------------------------note on: ");
   Serial.println(note);
 }
 
-int readPin(int pin) {
+int readPin(const int pin) {
   int idx;
   long start=millis();
   double stddev;
@@ -118,12 +122,12 @@ int readPin(int pin) {
     stddev=sqrt(stddev_sum/SAMPLE_SET);
     long endTime=millis();
     Serial.print("elapsed time: ");
-    Serial.println(endTime-start);
-    Serial.print("loops: ");
-    Serial.println(loops);
-    Serial.print("Average: ");
-    Serial.println(mean);
-    Serial.print("Standard Deviation: ");
+    Serial.print(endTime-start);
+    Serial.print("  loops: ");
+    Serial.print(loops);
+    Serial.print("  Average: ");
+    Serial.print(mean);
+    Serial.print("   Standard Deviation: ");
     Serial.println(stddev);
     idx=findIndex(mean);
   } 
@@ -132,13 +136,13 @@ int readPin(int pin) {
   return idx;
 }
 
-void swap(int *a, int *b) { 
+void swap(int * const a, int * const b) { 
   int t=*a; 
   *a=*b; 
   *b=t; 
 }
 
-void sort(int arr[], int beg, int end) {
+void sort(int arr[], const int beg, const int end) {
   if (end > beg + 1) {
     int piv = arr[beg], l = beg + 1, r = end;
     while (l < r) {
@@ -153,7 +157,7 @@ void sort(int arr[], int beg, int end) {
   }
 }
 
-int findIndex(int frequency) {
+int findIndex(const int frequency) {
   int index=-1;
 
   for(int curIndex=0; ladder[curIndex]!=-1; curIndex++) {
@@ -167,20 +171,25 @@ int findIndex(int frequency) {
   return index;
 }
 
-long lsquare(long t) {
+long lsquare(const long t) {
   return t*t;
 }
 
-void scroll(String s, int row, int col) {
+void scroll(const String s, const int row, const int col) {
   String spaces("                ");
   lcd.setCursor(col, row);
   lcd.print(spaces);
-  for(int pos=0;pos<s.length(); pos++) {
+  for(unsigned int pos=0;pos<s.length(); pos++) {
     String newString=s.substring(s.length()-pos-1)+spaces.substring(pos,spaces.length()-1);
     lcd.setCursor(col, row);
     lcd.print(newString);
     delay(75);
   }
+  lcd.setCursor(0,0);
 }
 
+void updateOctave(const int octave, const int row, const int col) {
+  lcd.setCursor(col,row);
+  lcd.print(octave);
+}
 
