@@ -1,12 +1,19 @@
 #include <MIDI.h>
 #include <LiquidCrystal.h>
-/*
-   note: FASTADC breaks things. Don't why yet.
- not sure it's necessary, as our resolution is actually
- very very good right now.
- */
 
-#define FASTADC 0
+/*
+ note: FASTADC *sometimes* breaks things. Don't why yet.
+ not sure it's necessary, as our resolution is actually
+ fairly good right now.
+ 
+ tests show:
+ sample count   slow read time  fast read time
+ 100            14 (accurate)
+ 80             12 (accurate)
+ 60             9  (accurate)   3 (accurate)
+ */
+#define FASTADC 1
+#define DEBUG 1
 
 // defines for setting and clearing register bits
 #ifndef cbi
@@ -19,7 +26,7 @@
 const int STAT7=7;
 LiquidCrystal lcd(4,5,8,9,10,11);
 int octave=2;
-const int SAMPLE_COUNT = 100;
+const int SAMPLE_COUNT = 60;
 const int SAMPLE_SET=(int)(SAMPLE_COUNT*0.6);
 const int ACCEPTABLE_STDDEV=2;
 int ladder[]={ 
@@ -33,6 +40,7 @@ int ladder[]={
 
 int dataPoints[SAMPLE_COUNT];
 //----------------------------------------------------
+void initSerial();
 
 void swap(int * const a, int * const b);
 void sort(int arr[], const int beg, const int end);
@@ -56,8 +64,7 @@ void setup() {
   // set up the A2 pin
   digitalWrite(A2, HIGH); 
 
-  Serial.begin(9600);
-  Serial.println("Hello!");
+  initSerial();
 
   lcd.begin(16,2);
   scroll("FrankenPedal v1");
@@ -85,23 +92,17 @@ void loop() {
       }
     }
     lastIndex=index;
+#if DEBUG
     delay(150);
+#endif
   }
-}
-
-void noteOff(const int note) {
-  Serial.print("-------------------------------------note off: ");
-  Serial.println(note);
-}
-
-void noteOn(const int note) {
-  Serial.print("-------------------------------------note on: ");
-  Serial.println(note);
 }
 
 int readPin(const int pin) {
   int idx;
+#if DEBUG
   long start=millis();
+#endif
   double stddev;
   int loops=0;
   int mean;
@@ -115,23 +116,27 @@ int readPin(const int pin) {
       sum+=dataPoints[counter];
     }
     mean=(int)(sum/SAMPLE_SET);
-    long stddev_sum=0L;  
-    for(int counter=0;counter<SAMPLE_SET; counter++) {
-      stddev_sum+=lsquare((dataPoints[counter]-mean));
+    if(mean<900) {
+      long stddev_sum=0L;  
+      for(int counter=0;counter<SAMPLE_SET; counter++) {
+        stddev_sum+=lsquare((dataPoints[counter]-mean));
+      }
+      stddev=sqrt(stddev_sum/SAMPLE_SET);
     }
-    stddev=sqrt(stddev_sum/SAMPLE_SET);
-    long endTime=millis();
-    Serial.print("elapsed time: ");
-    Serial.print(endTime-start);
-    Serial.print("  loops: ");
-    Serial.print(loops);
-    Serial.print("  Average: ");
-    Serial.print(mean);
-    Serial.print("   Standard Deviation: ");
-    Serial.println(stddev);
+#if DEBUG
+      long endTime=millis();
+      Serial.print("elapsed time: ");
+      Serial.print(endTime-start);
+      Serial.print("  loops: ");
+      Serial.print(loops);
+      Serial.print("  Average: ");
+      Serial.print(mean);
+      Serial.print("   Standard Deviation: ");
+      Serial.println(stddev);
+#endif
     idx=findIndex(mean);
   } 
-  while(mean<900 && stddev>(ACCEPTABLE_STDDEV+(13-idx)) && (loops++)<5);
+  while(mean<900 && stddev>(ACCEPTABLE_STDDEV+(13-idx)/3) && (loops++)<5);
 
   return idx;
 }
@@ -192,4 +197,35 @@ void updateOctave(const int octave, const int row, const int col) {
   lcd.setCursor(col,row);
   lcd.print(octave);
 }
+
+#if DEBUG
+void initSerial() {
+  Serial.begin(9600);
+  Serial.println("Hello!");
+}
+
+void noteOff(const int note) {
+  Serial.print("-------------------------------------note off: ");
+  Serial.println(note);
+}
+
+void noteOn(const int note) {
+  Serial.print("-------------------------------------note on: ");
+  Serial.println(note);
+}
+
+#else 
+void initSerial() {
+}
+
+void noteOn(const int note) {
+}
+
+void noteOff(const int note) {
+}
+#endif
+
+
+
+
 
