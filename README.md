@@ -3,7 +3,6 @@ frankenpedal
 
 Controller sketches for the frankenpedals
 
-Basically, all the work is in midi_debug right now. 
 The goal is to get a valid reading from the pedals *every* time,
 so I'm focusing on fixing readPin() to return the most accurate reading
 I can.
