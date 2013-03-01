@@ -14,20 +14,9 @@
 const int STAT7=7;
 LiquidCrystal lcd(4,5, 8,9,10,11);
 int octave=2;
-
-void noteOff(int note) {
-  Serial.print("-------------------------------------note off: ");
-  Serial.println(note);
-}
-
-void noteOn(int note) {
-  Serial.print("-------------------------------------note on: ");
-  Serial.println(note);
-}
-
 const int SAMPLE_COUNT = 100;
+const int SAMPLE_SET=(int)(SAMPLE_COUNT*0.8);
 const int ACCEPTABLE_STDDEV=2;
-
 int ladder[]={ 
   285, 265, 250,
   235, 220, 205,
@@ -38,53 +27,16 @@ int ladder[]={
 };
 
 int dataPoints[SAMPLE_COUNT];
+//----------------------------------------------------
 
-int readPin(int pin) {
-  int idx;
-  long start=millis();
-  double stddev;
-  int loops=0;
-  int mean;
-  do {
-    double sum=0L;
-    for(int counter=0; counter<SAMPLE_COUNT; counter++) {
-      sum+=dataPoints[counter]=analogRead(pin);
-    }
-    mean=(int)(sum/SAMPLE_COUNT);
-    long stddev_sum=0L;  
-    for(int counter=0;counter<SAMPLE_COUNT; counter++) {
-      stddev_sum+=(dataPoints[counter]-mean)*(dataPoints[counter]-mean);
-    }
-    stddev=sqrt(stddev_sum/SAMPLE_COUNT);
-    long endTime=millis();
-    Serial.print("elapsed time: ");
-    Serial.println(endTime-start);
-    Serial.print("loops: ");
-    Serial.println(loops);
-    Serial.print("Average: ");
-    Serial.println(mean);
-    Serial.print("Standard Deviation: ");
-    Serial.println(stddev);
-    idx=findIndex(mean);
-  } 
-  while(mean<900 && stddev>(ACCEPTABLE_STDDEV+(13-idx)) && (loops++)<5);
-
-  return idx;
-}
-
-int findIndex(int frequency) {
-  int index=-1;
-
-  for(int curIndex=0; ladder[curIndex]!=-1; curIndex++) {
-    if(frequency<ladder[curIndex]) {
-      index=curIndex;
-    }
-    if(frequency>ladder[curIndex]) {
-      break; 
-    }
-  }
-  return index;
-}
+void swap(int *a, int *b);
+void sort(int arr[], int beg, int end);
+void noteOff(int note);
+void noteOn(int note);
+int readPin(int pin);
+int findIndex(int frequency);
+long lsquare(long t);
+//----------------------------------------------------
 
 void setup() {
 #if FASTADC
@@ -132,4 +84,89 @@ void loop() {
 
 
 
+void noteOff(int note) {
+  Serial.print("-------------------------------------note off: ");
+  Serial.println(note);
+}
+
+void noteOn(int note) {
+  Serial.print("-------------------------------------note on: ");
+  Serial.println(note);
+}
+
+int readPin(int pin) {
+  int idx;
+  long start=millis();
+  double stddev;
+  int loops=0;
+  int mean;
+  do {
+    double sum=0L;
+    for(int counter=0; counter<SAMPLE_COUNT; counter++) {
+      dataPoints[counter]=analogRead(pin);
+    }
+    sort(dataPoints,0, SAMPLE_COUNT);
+    for(int counter=0; counter<SAMPLE_SET;counter++) {
+      sum+=dataPoints[counter];
+    }
+    mean=(int)(sum/SAMPLE_SET);
+    long stddev_sum=0L;  
+    for(int counter=0;counter<SAMPLE_SET; counter++) {
+      stddev_sum+=lsquare((dataPoints[counter]-mean));
+    }
+    stddev=sqrt(stddev_sum/SAMPLE_SET);
+    long endTime=millis();
+    Serial.print("elapsed time: ");
+    Serial.println(endTime-start);
+    Serial.print("loops: ");
+    Serial.println(loops);
+    Serial.print("Average: ");
+    Serial.println(mean);
+    Serial.print("Standard Deviation: ");
+    Serial.println(stddev);
+    idx=findIndex(mean);
+  } 
+  while(mean<900 && stddev>(ACCEPTABLE_STDDEV+(13-idx)) && (loops++)<5);
+
+  return idx;
+}
+
+void swap(int *a, int *b) { 
+  int t=*a; 
+  *a=*b; 
+  *b=t; 
+}
+
+void sort(int arr[], int beg, int end) {
+  if (end > beg + 1) {
+    int piv = arr[beg], l = beg + 1, r = end;
+    while (l < r) {
+      if (arr[l] <= piv) 
+        l++;
+      else 
+        swap(&arr[l], &arr[--r]);
+    }
+    swap(&arr[--l], &arr[beg]);
+    sort(arr, beg, l);
+    sort(arr, r, end);
+  }
+}
+
+int findIndex(int frequency) {
+  int index=-1;
+
+  for(int curIndex=0; ladder[curIndex]!=-1; curIndex++) {
+    if(frequency<ladder[curIndex]) {
+      index=curIndex;
+    }
+    if(frequency>ladder[curIndex]) {
+      break; 
+    }
+  }
+  return index;
+}
+
+long lsquare(long t) {
+  return t*t;
+}
 
