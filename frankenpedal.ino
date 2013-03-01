@@ -183,7 +183,6 @@ void updateOctave(const int octave, const int row, const int col) {
 #if DEBUG
 void initSerial() {
   Serial.begin(9600);
-  Serial.println("Hello!");
 }
 
 void noteOff(const int note) {
