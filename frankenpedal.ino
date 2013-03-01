@@ -13,7 +13,7 @@
  60             9  (accurate)   3 (accurate)
  */
 #define FASTADC 1
-#define DEBUG 1
+#define DEBUG 0
 
 // defines for setting and clearing register bits
 #ifndef cbi
@@ -25,7 +25,7 @@
 
 LiquidCrystal lcd(4,5,8,9,10,11);
 int octave=2;
-const int SAMPLE_COUNT = 100;
+const int SAMPLE_COUNT = 120;
 //const int SAMPLE_SET=(int)(SAMPLE_COUNT*0.6);
 //const int ACCEPTABLE_STDDEV=2;
 int ladder[]={ 
@@ -36,10 +36,13 @@ int ladder[]={
   50,
   -1 
 };
+
+// note that each String here should be two chars long
 String notes[]={
-  "C", "C#", "D", "D#", "E", 
-  "F", "F#", "G", "G#", "A",
-  "A#", "B", "C",
+  "  ",
+  "C ", "C#", "D ", "D#", "E ", 
+  "F ", "F#", "G ", "G#", "A ",
+  "A#", "B ", "C ",
 };
 
 //----------------------------------------------------
@@ -53,7 +56,7 @@ int readPin(const int pin);
 int findIndex(const int frequency);
 long lsquare(const long t);
 void scroll(const String s, const int row=0, const int col=0);
-void updateOctave(const int octave, const int row=1, const int col=3);
+void showNote(const int note, const int octave);
 //----------------------------------------------------
 
 void setup() {
@@ -71,10 +74,6 @@ void setup() {
 
   lcd.begin(16,2);
   scroll("FrankenPedal v1");
-  lcd.setCursor(0,1);
-  lcd.print("O: ");
-  updateOctave(octave);  
-  lcd.setCursor(5,1);
 }
 
 void loop() {
@@ -84,7 +83,6 @@ void loop() {
 
   while(true) {
     octave=1+((analogRead(A0))>>7);
-    updateOctave(octave);
     index=readPin(A2);
     if(index!=lastIndex) {
       if(lastIndex!=-1) {
@@ -93,10 +91,11 @@ void loop() {
       if(index!=-1) {
         noteOn(baseC1+octave*12+index);
       }
+      showNote(index, octave);
     }
     lastIndex=index;
 #if DEBUG
-    delay(1500);
+    delay(50);
 #endif
   }
 }
@@ -106,9 +105,11 @@ int readPin(const int pin) {
   byte counter;
   int data[14];
   int pinSelect;
+
 #if DEBUG
   long start=millis();
 #endif
+
   // zero the reads
   for(counter=0;counter<14;counter++) {
     data[counter]=0;
@@ -118,12 +119,15 @@ int readPin(const int pin) {
     pinSelect=(-1!=pinSelect?pinSelect:13);
     data[pinSelect]++;
   }
+#if DEBUG
   Serial.print("data [");
   for(counter=0; counter<14; counter++) {
     Serial.print(data[counter]);
     Serial.print(",");
   }
   Serial.println("]");
+#endif
+
   // now find the maximum reads in the set; that's our pin!
   pinSelect=-1;
   int maxPin=0;
@@ -134,6 +138,7 @@ int readPin(const int pin) {
     }
   }
   pinSelect=(pinSelect==13?-1:pinSelect);
+
 #if DEBUG
   long endTime=millis();
   Serial.print("elapsed time: ");
@@ -141,6 +146,7 @@ int readPin(const int pin) {
   Serial.print("  note: ");
   Serial.println(pinSelect);
 #endif
+
   return pinSelect;
 }
 
@@ -175,9 +181,17 @@ void scroll(const String s, const int row, const int col) {
   lcd.setCursor(0,0);
 }
 
-void updateOctave(const int octave, const int row, const int col) {
-  lcd.setCursor(col,row);
-  lcd.print(octave);
+
+void showNote(const int note, const int octave) {
+  lcd.setCursor(0,1);
+  lcd.print(notes[note+1]);
+  if(note!=-1) {
+    lcd.print(octave+(note==12?1:0));
+  } 
+  else { 
+    lcd.setCursor(2,1);
+  }
+  lcd.print(" ");
 }
 
 #if DEBUG
@@ -197,14 +211,21 @@ void noteOn(const int note) {
 
 #else 
 void initSerial() {
+  MIDI.begin(4);
 }
 
 void noteOn(const int note) {
+  MIDI.sendNoteOn(note, 127, 1);
 }
 
 void noteOff(const int note) {
+  MIDI.sendNoteOff(note, 0, 1);
 }
 #endif
+
+
+
+
 
 
 
