@@ -1,5 +1,4 @@
 #include <MIDI.h>
-#include <LiquidCrystal.h>
 
 /*
  note: FASTADC *sometimes* breaks things. Don't why yet.
@@ -12,9 +11,9 @@
  80             12 (accurate)
  60             9  (accurate)   3 (accurate)
  */
-#define FASTADC 1
+#define FASTADC 0
 #define DEBUG 0
-
+#define ACCEPTABLE_STDDEV 4
 // defines for setting and clearing register bits
 #ifndef cbi
 #define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
@@ -23,26 +22,17 @@
 #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
 #endif
 
-LiquidCrystal lcd(4,5,8,9,10,11);
 int octave=2;
-const int SAMPLE_COUNT = 120;
-//const int SAMPLE_SET=(int)(SAMPLE_COUNT*0.6);
-//const int ACCEPTABLE_STDDEV=2;
+const int SAMPLE_COUNT = 60;
+const int SAMPLE_SET=SAMPLE_COUNT*0.6;
+int dataPoints[SAMPLE_COUNT];
 int ladder[]={ 
-  285, 265, 250,
-  235, 220, 205,
-  180, 165, 150,
-  125, 105, 70,
-  50,
+  285, 260, 245, // c, c#, d
+  230, 210, 195, // d#, e, f
+  175, 165, 145, // f#, g, g#
+  125, 105, 70,  // a, a#, b
+  50,            // c
   -1 
-};
-
-// note that each String here should be two chars long
-String notes[]={
-  "  ",
-  "C ", "C#", "D ", "D#", "E ", 
-  "F ", "F#", "G ", "G#", "A ",
-  "A#", "B ", "C ",
 };
 
 //----------------------------------------------------
@@ -54,9 +44,6 @@ void noteOff(const int note);
 void noteOn(const int note);
 int readPin(const int pin);
 int findIndex(const int frequency);
-long lsquare(const long t);
-void scroll(const String s, const int row=0, const int col=0);
-void showNote(const int note, const int octave);
 //----------------------------------------------------
 
 void setup() {
@@ -66,14 +53,12 @@ void setup() {
   cbi(ADCSRA,ADPS1) ;
   cbi(ADCSRA,ADPS0) ;
 #endif
+  //  lcd.begin(16,2);
 
   // set up the A2 pin
   digitalWrite(A2, HIGH); 
 
   initSerial();
-
-  lcd.begin(16,2);
-  scroll("FrankenPedal v1");
 }
 
 void loop() {
@@ -91,63 +76,81 @@ void loop() {
       if(index!=-1) {
         noteOn(baseC1+octave*12+index);
       }
-      showNote(index, octave);
     }
     lastIndex=index;
+    delay(10);
 #if DEBUG
-    delay(50);
+    delay(250);
 #endif
   }
 }
 
 int readPin(const int pin) {
   int idx;
-  byte counter;
-  int data[14];
-  int pinSelect;
-
 #if DEBUG
   long start=millis();
 #endif
-
-  // zero the reads
-  for(counter=0;counter<14;counter++) {
-    data[counter]=0;
-  }
-  for(counter=0;counter<SAMPLE_COUNT;counter++) {
-    pinSelect=findIndex(analogRead(pin));
-    pinSelect=(-1!=pinSelect?pinSelect:13);
-    data[pinSelect]++;
-  }
-#if DEBUG
-  Serial.print("data [");
-  for(counter=0; counter<14; counter++) {
-    Serial.print(data[counter]);
-    Serial.print(",");
-  }
-  Serial.println("]");
-#endif
-
-  // now find the maximum reads in the set; that's our pin!
-  pinSelect=-1;
-  int maxPin=0;
-  for(counter=0; counter<14; counter++) {
-    if(data[counter]>maxPin) {
-      maxPin=data[counter];
-      pinSelect=counter;
+  double stddev;
+  int loops=0;
+  int mean;
+  do {
+    double sum=0L;
+    for(int counter=0; counter<SAMPLE_COUNT; counter++) {
+      dataPoints[counter]=analogRead(pin);
     }
-  }
-  pinSelect=(pinSelect==13?-1:pinSelect);
-
+    sort(dataPoints,0, SAMPLE_COUNT);
+    for(int counter=0; counter<SAMPLE_SET;counter++) {
+      sum+=dataPoints[counter];
+    }
+    mean=(int)(sum/SAMPLE_SET);
+    if(mean<900) {
+      long stddev_sum=0L;  
+      for(int counter=0;counter<SAMPLE_SET; counter++) {
+        stddev_sum+=lsquare((dataPoints[counter]-mean));
+      }
+      stddev=sqrt(stddev_sum/SAMPLE_SET);
+    }
 #if DEBUG
-  long endTime=millis();
-  Serial.print("elapsed time: ");
-  Serial.print(endTime-start);
-  Serial.print("  note: ");
-  Serial.println(pinSelect);
+    long endTime=millis();
+    Serial.print("elapsed time: ");
+    Serial.print(endTime-start);
+    Serial.print("  loops: ");
+    Serial.print(loops);
+    Serial.print("  Average: ");
+    Serial.print(mean);
+    Serial.print("   Standard Deviation: ");
+    Serial.println(stddev);
 #endif
+    idx=findIndex(mean);
+  } 
+  while(mean<900 && stddev>(ACCEPTABLE_STDDEV+(13-idx)/3) && (loops++)<5);
 
-  return pinSelect;
+  return idx;
+}
+
+long lsquare(const long t) {
+  return t*t;
+}
+
+void swap(int * const a, int * const b) { 
+  int t=*a; 
+  *a=*b; 
+  *b=t; 
+}
+
+void sort(int arr[], const int beg, const int end) {
+  if (end > beg + 1) {
+    int piv = arr[beg], l = beg + 1, r = end;
+    while (l < r) {
+      if (arr[l] <= piv) 
+        l++;
+      else 
+        swap(&arr[l], &arr[--r]);
+    }
+    swap(&arr[--l], &arr[beg]);
+    sort(arr, beg, l);
+    sort(arr, r, end);
+  }
 }
 
 int findIndex(const int frequency) {
@@ -162,36 +165,6 @@ int findIndex(const int frequency) {
     }
   }
   return index;
-}
-
-long lsquare(const long t) {
-  return t*t;
-}
-
-void scroll(const String s, const int row, const int col) {
-  String spaces("                ");
-  lcd.setCursor(col, row);
-  lcd.print(spaces);
-  for(unsigned int pos=0;pos<s.length(); pos++) {
-    String newString=s.substring(s.length()-pos-1)+spaces.substring(pos,spaces.length()-1);
-    lcd.setCursor(col, row);
-    lcd.print(newString);
-    delay(75);
-  }
-  lcd.setCursor(0,0);
-}
-
-
-void showNote(const int note, const int octave) {
-  lcd.setCursor(0,1);
-  lcd.print(notes[note+1]);
-  if(note!=-1) {
-    lcd.print(octave+(note==12?1:0));
-  } 
-  else { 
-    lcd.setCursor(2,1);
-  }
-  lcd.print(" ");
 }
 
 #if DEBUG
@@ -222,6 +195,7 @@ void noteOff(const int note) {
   MIDI.sendNoteOff(note, 0, 1);
 }
 #endif
+
 
 
 
